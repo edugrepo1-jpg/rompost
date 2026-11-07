@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f4fa">
+  <script>try{const t=localStorage.getItem("rompost:theme:v2");document.documentElement.dataset.theme=t==="light"||t==="dark"?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");}catch{document.documentElement.dataset.theme="light"}</script>
+  <meta name="description" content="Gere posts de Custom ROM para o Telegram, com links clicáveis e prévia instantânea.">
+  <title>ROM Post — Posts para Custom ROMs</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <svg xmlns="http://www.w3.org/2000/svg" class="svg-sprite" aria-hidden="true">
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 2.5 14.3 9.7 21.5 12l-7.2 2.3L12 21.5l-2.3-7.2L2.5 12l7.2-2.3L12 2.5Z" fill="currentColor"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="8.5" cy="9" r="1.7" fill="currentColor"/><path d="m4 17 4.4-4.2 2.8 2.3 3.7-4.4L21 17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.9"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M9.5 14.5a5 5 0 0 0 7.1 0l2.4-2.4a5 5 0 0 0-7.1-7.1l-1.3 1.3m2.9 3.2a5 5 0 0 0-7.1 0L4 11.9a5 5 0 0 0 7.1 7.1l1.3-1.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 8v-5m0 5h-5M19 8a8 8 0 1 0 1 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M12 5h7v7m0-7-9 9m9 1v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.2 15.4A8.4 8.4 0 0 1 8.6 3.8 8.7 8.7 0 1 0 20.2 15.4Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42m0-14.14-1.42 1.42M6.35 17.65l-1.42 1.42" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-lightning" viewBox="0 0 24 24"><path d="M13.5 2 5 13h6l-1 9 9-12h-6l.5-8Z" fill="currentColor"/></symbol>
+  </svg>
+
+  <div class="page-glow glow-a"></div><div class="page-glow glow-b"></div>
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="#inicio" aria-label="ROM Post, início"><span class="brand-mark"><svg class="icon"><use href="#i-spark"/></svg></span><span>rom<span class="brand-em">post</span><span class="brand-period">.</span></span></a>
+      <div class="topbar-right"><button type="button" class="theme-toggle" id="themeToggle" aria-label="Ativar modo escuro" title="Alternar tema"><svg class="icon" id="themeIcon"><use href="#i-moon"/></svg><span id="themeLabel">Escuro</span></button><button type="button" class="text-button" id="resetBtn"><svg class="icon"><use href="#i-refresh"/></svg> Novo post</button></div>
+    </header>
+
+    <main id="inicio">
+      <section class="hero">
+        <h1>Posts de ROM <span>para Telegram.</span></h1>
+        <p>Preencha, confira e copie. Sem login.</p>
+      </section>
+
+      <div class="workspace">
+        <section class="editor panel" aria-label="Editor do post">
+          <div class="panel-intro"><div><h2>Dados do post</h2><p>ROM, links e detalhes da publicação.</p></div><button id="exampleBtn" type="button" class="soft-button">Carregar exemplo <svg class="icon"><use href="#i-arrow"/></svg></button></div>
+
+          <div class="form-section no-top">
+            <div class="section-top"><span class="section-icon lavender"><svg class="icon"><use href="#i-image"/></svg></span><h3>Banner</h3><span class="field-optional">opcional</span></div>
+            <div class="upload-row" id="uploadArea" role="button" tabindex="0" aria-label="Selecionar banner da ROM">
+              <div class="upload-image" id="uploadThumb"><svg class="icon"><use href="#i-image"/></svg></div>
+              <div class="upload-text"><strong id="uploadTitle">Selecionar imagem</strong><span id="uploadSubtitle">PNG, JPG ou WebP</span></div>
+              <span class="upload-action" aria-hidden="true"><svg class="icon"><use href="#i-plus"/></svg></span>
+            </div>
+            <input type="file" accept="image/png,image/jpeg,image/webp" id="bannerInput" hidden>
+            <button id="removeBanner" type="button" class="remove-banner" hidden>Remover imagem</button>
+          </div>
+
+          <div class="form-section">
+            <div class="section-top"><span class="section-icon violet"><svg class="icon"><use href="#i-lightning"/></svg></span><h3>ROM</h3></div>
+            <div class="form-grid">
+              <label class="field span-two"><span>Nome da ROM <b aria-hidden="true">*</b></span><input id="romName" required maxlength="90" placeholder="Ex.: PixelOS" autocomplete="off"></label>
+              <label class="field"><span>Versão</span><input id="romVersion" maxlength="45" placeholder="Ex.: 17.0"></label>
+              <label class="field"><span>Android</span><div class="select-wrap"><select id="androidVersion"><option value="">Selecione</option><option value="17">Android 17</option><option value="16">Android 16</option><option value="15">Android 15</option><option value="14">Android 14</option><option value="13">Android 13</option><option value="12">Android 12</option><option value="11">Android 11</option><option value="10">Android 10</option></select><svg class="icon"><use href="#i-chevron"/></svg></div></label>
+              <label class="field"><span>Build</span><div class="select-wrap"><select id="buildType"><option value="">Selecione</option><option value="UNOFFICIAL">UNOFFICIAL</option><option value="OFFICIAL">OFFICIAL</option><option value="BETA">BETA</option><option value="STABLE">STABLE</option></select><svg class="icon"><use href="#i-chevron"/></svg></div></label>
+              <label class="field"><span>Dispositivo / Codinome</span><input id="deviceName" maxlength="100" placeholder="Ex.: POCO F3 / alioth"></label>
+              <label class="field"><span>Data do lançamento</span><input type="date" id="releaseDate"></label>
+              <div class="field span-two tag-field"><div class="field-head"><label for="hashtags">Hashtags</label><button id="autoTags" class="inline-link" type="button">Gerar tags</button></div><input id="hashtags" maxlength="600" placeholder="#PixelOS #ROM #Unofficial #A16 #alioth"></div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-top"><span class="section-icon peach"><svg class="icon"><use href="#i-link"/></svg></span><h3>Links</h3><span class="field-optional">opcionais</span></div>
+            <div class="links-list" id="linksList"></div>
+            <button id="addLink" type="button" class="add-link"><svg class="icon"><use href="#i-plus"/></svg> Adicionar link</button>
+          </div>
+
+          <div class="form-section">
+            <div class="section-top"><span class="section-icon mint"><svg class="icon"><use href="#i-check"/></svg></span><h3>Changelog, Notes e Credits</h3></div>
+            <div class="fields-stack">
+              <label class="field"><span>Changelog</span><textarea id="changelog" rows="3" placeholder="• Initial release&#10;• Fixed camera issues&#10;• Improved performance"></textarea></label>
+              <label class="field"><span>Notes</span><textarea id="notes" rows="3" placeholder="• GApps included&#10;• SELinux: Enforcing&#10;• Clean flash recommended"></textarea></label>
+              <label class="field"><span>Credits</span><textarea id="credits" rows="3" placeholder="• Thanks @developer for device tree&#10;• Thanks @tester for testing"></textarea></label>
+            </div>
+            <p class="help-line">Links no texto: <code>[Changelog](https://link.com)</code> · Menções <code>@usuario</code> ficam clicáveis.</p>
+          </div>
+
+          <div class="form-section last-section">
+            <div class="section-top"><span class="section-icon lightpink"><svg class="icon"><use href="#i-spark"/></svg></span><h3>Rodapé</h3><span class="field-optional">opcionais</span></div>
+            <div class="form-grid footer-grid">
+              <label class="field"><span>By</span><input id="by" maxlength="300" placeholder="@developer"></label>
+              <label class="field"><span>Follow</span><input id="follow" maxlength="300" placeholder="@canal"></label>
+              <label class="field span-two"><span>Join</span><input id="join" maxlength="300" placeholder="@grupo"></label>
+            </div>
+          </div>
+        </section>
+
+        <aside class="preview-side" aria-label="Prévia do Telegram">
+          <section class="preview-panel panel">
+            <div class="preview-heading"><div><h2>Prévia</h2><p>Telegram</p></div><span class="live-indicator"><span></span> Em tempo real</span></div>
+            <div class="tg-shell">
+              <div class="tg-top"><div class="tg-avatar"><svg class="icon"><use href="#i-spark"/></svg></div><div><strong>Canal de ROMs</strong><small>Visualização do post</small></div><span class="tg-dots">•••</span></div>
+              <div class="tg-body"><span class="tg-date">Hoje</span><article class="tg-post"><div class="tg-image" id="previewBanner"><div class="image-fallback"><svg class="icon"><use href="#i-image"/></svg><strong>Banner da ROM</strong><small>Selecione uma imagem</small></div></div><div id="postPreview" class="tg-content"><span class="empty-preview">O post aparece aqui conforme você preenche.</span></div><div class="tg-bottom">agora <span>✓✓</span></div></article></div>
+            </div>
+            <div class="publication-choice"><span>Publicar como</span><div class="segment" role="radiogroup" aria-label="Modo de publicação"><label><input type="radio" name="mode" value="caption" checked><span>Legenda</span></label><label><input type="radio" name="mode" value="message"><span>Mensagem</span></label></div></div>
+            <div class="count-line"><span id="counterLabel">0 / 1024 caracteres</span><span class="count-dot" id="countStatus">OK</span></div>
+            <div class="progress"><div id="progressFill"></div></div>
+            <p id="lengthWarning" class="length-warning" hidden></p>
+            <button type="button" id="copyRich" class="copy-button"><svg class="icon"><use href="#i-copy"/></svg><span>Copiar post</span><svg class="icon right-arrow"><use href="#i-arrow"/></svg></button>
+            <button type="button" id="copyPlain" class="plain-button">Copiar com URLs visíveis <svg class="icon"><use href="#i-external"/></svg></button>
+            <p class="bottom-tip">O banner deve ser anexado no Telegram. Cole o texto e confira os links.</p>
+          </section>
+          
+        </aside>
+      </div>
+    </main>
+    <footer class="site-footer"><span>rompost.</span><span>Rascunho neste navegador · Sem login</span></footer>
+  </div>
+  <div class="mobile-dock" aria-label="Copiar publicação">
+    <div class="mobile-dock-label"><span class="mobile-dock-dot"></span><strong>Prévia</strong><small>Telegram</small></div>
+    <button type="button" id="copyMobile"><svg class="icon"><use href="#i-copy"/></svg> Copiar post</button>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
