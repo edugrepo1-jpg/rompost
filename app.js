@@ -4,6 +4,8 @@
 
   const STORAGE_KEY = 'rompost:material:onepage:v1';
   const THEME_KEY = 'rompost:theme:v2';
+  const STYLE_KEY = 'rompost:style:v1';
+  const PROFILE_KEY = 'rompost:profile:v1';
   const SIGNATURE_TEXT = 'Post Gerado by @GMNevz';
   const SIGNATURE_HTML = 'Post Gerado by <a href="https://t.me/GMNevz">@GMNevz</a>';
   const FIELDS = ['romName', 'romVersion', 'androidVersion', 'buildType', 'deviceName', 'releaseDate', 'hashtags', 'changelog', 'notes', 'credits', 'by', 'follow', 'join'];
@@ -17,7 +19,7 @@
   const freshState = () => ({
     romName:'', romVersion:'', androidVersion:'', buildType:'', deviceName:'',
     releaseDate:localDate(), hashtags:'', changelog:'', notes:'', credits:'',
-    by:'', follow:'', join:'', repoUrl:'', mode:'caption', tagsManual:false, links:defaultLinks()
+    by:'', follow:'', join:'', repoUrl:'', mode:'caption', tagsManual:false, commitsCache:'', links:defaultLinks()
   });
   const slice = (value, max = 20000) => typeof value === 'string' ? value.slice(0, max) : '';
   function restore(raw) {
@@ -25,6 +27,7 @@
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return clean;
     for (const key of FIELDS) clean[key] = slice(raw[key]);
     clean.repoUrl = slice(raw.repoUrl, 160);
+    clean.commitsCache = slice(raw.commitsCache, 15000);
     if (!['', 'UNOFFICIAL', 'OFFICIAL', 'BETA', 'STABLE'].includes(clean.buildType)) clean.buildType = '';
     if (!['', '17', '16', '15', '14', '13', '12', '11', '10'].includes(clean.androidVersion)) clean.androidVersion = '';
     if (clean.releaseDate && !/^\d{4}-\d{2}-\d{2}$/.test(clean.releaseDate)) clean.releaseDate = ''; 
@@ -203,12 +206,45 @@
   function renderFields() {
     for (const field of FIELDS) get(field).value = state[field];
     renderLinks();
+    renderTagChips();
     get('repoUrl').value = state.repoUrl || '';
     renderPreview();
   }
   function save() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
     catch (error) { console.warn('Armazenamento indisponível:', error); }
+  }
+  /* Perfil do canal (By/Follow/Join) — persistido à parte e reaplicado em novos posts. */
+  let profileSaveTimer;
+  function scheduleProfileSave() {
+    clearTimeout(profileSaveTimer);
+    profileSaveTimer = setTimeout(() => {
+      try { localStorage.setItem(PROFILE_KEY, JSON.stringify({ by: state.by, follow: state.follow, join: state.join })); } catch { /* armazenamento bloqueado */ }
+    }, 400);
+  }
+  function applyProfile(target) {
+    try {
+      const profile = JSON.parse(localStorage.getItem(PROFILE_KEY) || '{}');
+      if (profile && typeof profile === 'object') {
+        target.by = slice(profile.by, 300);
+        target.follow = slice(profile.follow, 300);
+        target.join = slice(profile.join, 300);
+      }
+    } catch { /* sem perfil salvo */ }
+    return target;
+  }
+  /* Memória de estilo: exemplos de posts antigos usados como few-shot pela IA. */
+  let styleSaveTimer;
+  function scheduleStyleSave() {
+    clearTimeout(styleSaveTimer);
+    styleSaveTimer = setTimeout(() => {
+      try { localStorage.setItem(STYLE_KEY, get('styleMemory').value.slice(0, 6000)); } catch { /* armazenamento bloqueado */ }
+    }, 400);
+  }
+  function styleExamples() {
+    const raw = String(get('styleMemory')?.value || '').trim();
+    if (!raw) return [];
+    return raw.split(/\n\s*\n/).map(part => part.trim()).filter(part => part.length > 40).slice(0, 2);
   }
   function update() {
     renderPreview();
@@ -232,6 +268,7 @@
     get('uploadSubtitle').textContent = 'PNG, JPG ou WebP';
     get('previewBanner').innerHTML = '<div class="image-fallback"><svg class="icon"><use href="#i-image"/></svg><strong>Banner da ROM</strong><small>Selecione uma imagem</small></div>';
     get('removeBanner').hidden = true;
+    get('bannerDownload').hidden = true;
     renderPreview();
   }
   function loadBanner(file) {
@@ -350,9 +387,9 @@
   }
   function reset() {
     if (state.romName.trim() && !window.confirm('Limpar o rascunho e começar outro post?')) return;
-    state = freshState(); clearBanner(); renderFields(); save();
+    state = applyProfile(freshState()); clearBanner(); renderFields(); save();
     window.scrollTo({top:0, behavior:'smooth'});
-    toast('Novo post criado.');
+    toast('Novo post criado.' + (state.by.trim() || state.follow.trim() || state.join.trim() ? ' Rodapé do canal mantido.' : ''));
   }
   function setTheme(theme) {
     const dark = theme === 'dark';
@@ -366,15 +403,17 @@
   // IA: only field-level actions. Inputs are not saved or sent anywhere other than /api/ai.
   let aiBusy = false;
   const undoValues = Object.create(null);
-  async function askAI(task, input) {
+  async function askAI(task, input, useStyle = false) {
     if (aiBusy) return null;
     if (input.length > 15000) { toast('Use no máximo 15.000 caracteres por consulta.', 'warn'); return null; }
     aiBusy = true;
-    const buttons = [...document.querySelectorAll('.ai-actions button,[data-translate],#summarizeBtn')];
+    const buttons = [...document.querySelectorAll('.ai-actions button,[data-translate],#summarizeBtn,#verifyBtn,#smartRun')];
     buttons.forEach(b => b.disabled = true);
     try {
+      const payload = { task, text: input };
+      if (useStyle) { const examples = styleExamples(); if (examples.length) payload.style = examples; }
       const response = await fetch('/api/ai', {
-        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,text:input}),
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),
         signal:AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined
       });
       const result = await response.json().catch(() => ({}));
@@ -437,12 +476,12 @@
   async function processAIInput(task) {
     const source = get('aiSource').value;
     const text = get('aiInput').value.trim();
-    if (text.length < 4) {toast('Cole o conteúdo antes de gerar.', 'warn');return;}
+    if (text.length < 4) {toast('Cole o conteúdo antes de gerar.', 'warn');return false;}
     const realTask = source === 'oldpost' ? 'import' : task;
     const before = get('aiInput').value;
-    const data = await askAI(realTask, text);
-    if (!data) return;
-    if (get('aiInput').value !== before || get('aiSource').value !== source) {toast('O conteúdo mudou durante a análise. Resultado não aplicado.', 'warn');return;}
+    const data = await askAI(realTask, text, realTask !== 'import');
+    if (!data) return false;
+    if (get('aiInput').value !== before || get('aiSource').value !== source) {toast('O conteúdo mudou durante a análise. Resultado não aplicado.', 'warn');return false;}
     if (realTask === 'import') {
       const keys = FIELDS.filter(k => k !== 'releaseDate' || /^\d{4}-\d{2}-\d{2}$/.test(data[k] || ''));
       const existing = FIELDS.some(k => state[k]?.trim()) || state.links.some(l=>l.url.trim());
@@ -457,10 +496,15 @@
       if (!state.hashtags.trim()) {state.tagsManual=false;state.hashtags=generateTags();}
       renderFields();save();
       toast('Dados importados. Confira links e campos antes de copiar.');
+      return true;
     } else if (typeof data.text === 'string' && data.text.trim()) {
+      state.commitsCache = text.slice(0, 15000);
+      get('verifyStatus').hidden = true;
       setEditedField('changelog',data.text);
       toast(realTask==='organize'?'Commits organizados. Revise o changelog.':'Changelog gerado. Revise as mudanças.');
+      return true;
     }
+    return false;
   }
   async function summarizeChangelog() {
     const before = state.changelog;
@@ -542,14 +586,37 @@
       if (android) android = (android.match(/^\d+/)||[])[0] || '';
       const device=getZipProperty(metadata,'post-device') || getZipProperty(props,'ro.product.device') || getZipProperty(props,'ro.product.system.device');
       const cleanDevice=/^[a-z0-9_-]{2,35}$/i.test(device) ? device : '';
+      // ROM e versão: lê ro.<rom>.version das propriedades conhecidas (LineageOS, crDroid, PixelOS…)
+      const ROM_BY_PROP={lineage:'LineageOS',crdroid:'crDroid',pixelos:'PixelOS',evolution:'EvolutionX',havoc:'Havoc-OS',aex:'AOSP Extended',dotos:'dotOS',arrow:'ArrowOS',aospa:'AOSPA',pixelexperience:'Pixel Experience'};
+      let zipRomName='';let zipRomVersion='';
+      for (const line of props.split('\n')) {
+        const trimmed=line.trim();
+        const modern=/^ro\.([a-z0-9_]+)\.version\s*=\s*(.+)$/i.exec(trimmed);
+        const legacy=/^ro\.modversion\s*=\s*(.+)$/i.exec(trimmed);
+        if (modern) {
+          const key=modern[1].toLowerCase();const value=modern[2].trim();
+          if (!value || ['build','system','product','vendor','sdk','security'].includes(key)) continue;
+          if (ROM_BY_PROP[key]) { zipRomName=ROM_BY_PROP[key]; zipRomVersion=(value.match(/^v?[\d.]+/)||[])[0]||value; }
+          break;
+        }
+        if (legacy) { zipRomName='LineageOS'; zipRomVersion=(legacy[1].trim().match(/^v?[\d.]+/)||[])[0]||legacy[1].trim(); break; }
+      }
+      const buildUtc=Number(getZipProperty(props,'ro.build.date.utc'));
+      const buildDate=buildUtc>946684800 ? new Date(buildUtc*1000) : null; // depois de 2000
       const changes=[];
       if (android && ['', '17','16','15','14','13','12','11','10'].includes(android) && android !== state.androidVersion) changes.push(['androidVersion',android]);
       if (cleanDevice && !state.deviceName.toLowerCase().includes(cleanDevice.toLowerCase())) changes.push(['deviceName',cleanDevice]);
+      if (zipRomName && !state.romName.trim()) changes.push(['romName',zipRomName]);
+      if (zipRomVersion && !state.romVersion.trim()) changes.push(['romVersion',zipRomVersion]);
+      if (buildDate && !state.releaseDate) changes.push(['releaseDate',`${buildDate.getFullYear()}-${String(buildDate.getMonth()+1).padStart(2,'0')}-${String(buildDate.getDate()).padStart(2,'0')}`]);
+      info.hidden=false;
       info.textContent=`${file.name} · ${size}`;
       if (!changes.length) return toast('ZIP lido. Nenhum campo novo compatível encontrado.');
-      if (window.confirm(`ZIP: ${size}\nDados encontrados:\n${changes.map(([k,v])=>k==='androidVersion'?`Android ${v}`:`Dispositivo: ${v}`).join('\n')}\n\nUsar esses dados?`)) {
+      const FIELD_LABELS={androidVersion:'Android',deviceName:'Dispositivo',romName:'ROM',romVersion:'Versão',releaseDate:'Data'};
+      if (window.confirm(`ZIP: ${size}\n\nDados encontrados:\n${changes.map(([k,v])=>`${FIELD_LABELS[k]||k}: ${k==='releaseDate'?dateDisplay(v):v}`).join('\n')}\n\nUsar esses dados?`)) {
         for (const [key,value] of changes) {state[key]=value;get(key).value=value;}
         if (!state.tagsManual) {state.hashtags=generateTags();get('hashtags').value=state.hashtags;}
+        renderTagChips();
         update();toast('Dados do ZIP aplicados. Confira antes de publicar.');
       }
     } catch (e) {info.textContent='Não foi possível ler os metadados';toast(e.message || 'Erro ao ler ZIP.','error');}
@@ -575,10 +642,12 @@
     else if (rows.length < 18) rows.push({label,url});
   }
   function bundleRepoEvidence(info, mode) {
-    return JSON.stringify({mode, repository:info.repo,readme:String(info.readme||'').slice(0,3700),
+    return JSON.stringify({mode, repository:info.repo, hints:info.hints||null, readme:String(info.readme||'').slice(0,3000),
       release:info.release ? {name:info.release.title,tag:info.release.tag,notes:info.release.notes.slice(0,4000),prerelease:info.release.prerelease, date:info.release.date} : null,
-      commits:(info.commits || []).slice(0,25).map(c => c.message.slice(0,150))}).slice(0,14950);
+      releaseCommits:(info.releaseCommits||[]).slice(0,60).map(c => c.message.slice(0,150)),
+      commits:(info.commits || []).slice(0,15).map(c => c.message.slice(0,150))}).slice(0,14950);
   }
+  const cap = value => String(value || '').charAt(0).toUpperCase() + String(value || '').slice(1);
   function repoFieldsFromAI(data, info, mode) {
     const keys = mode==='full' ? ['romName','romVersion','androidVersion','buildType','deviceName','changelog','notes','credits','by','follow','join'] : ['romName','romVersion','androidVersion','buildType','deviceName'];
     const changes = {};
@@ -591,19 +660,32 @@
       changes.buildType = changes.buildType.toUpperCase();
       if (!['UNOFFICIAL','OFFICIAL','STABLE','BETA'].includes(changes.buildType)) delete changes.buildType;
     }
+    const hints = info.hints || {};
+    // Fallback determinístico: device tree tem codinome comprovado pelo nome do repositório.
+    if (!changes.deviceName && hints.deviceCode) {
+      const known = DEVICE_INDEX.get(hints.deviceCode);
+      changes.deviceName = known ? `${known.n.split(' / ')[0]} / ${hints.deviceCode}` : (hints.deviceOem ? `${cap(hints.deviceOem)} ${hints.deviceCode} / ${hints.deviceCode}` : hints.deviceCode);
+    }
+    if (!changes.romVersion && hints.romVersion) changes.romVersion = hints.romVersion;
     if (mode==='full' && info.release?.date && /^\d{4}-\d{2}-\d{2}/.test(info.release.date)) changes.releaseDate=info.release.date.slice(0,10);
     if (mode==='full' && info.release?.prerelease && !changes.buildType) changes.buildType = 'BETA';
     return changes;
   }
-  async function generateFromRepository(mode) {
+  async function generateFromRepository(mode, urlOverride, statusEl) {
     if (repoBusy || aiBusy) return;
-    const input = get('repoUrl').value.trim();
+    const input = String(urlOverride || get('repoUrl').value).trim();
     const repoName = extractRepoLink(input);
-    if (!repoName) {toast('Informe um link de repositório público do GitHub.','warn');get('repoUrl').focus();return;}
+    if (!repoName) {
+      toast('Informe um link de repositório público do GitHub.','warn');
+      if (urlOverride) { get('aiPanel').open = true; get('repoUrl').focus(); } else get('repoUrl').focus();
+      return;
+    }
     repoBusy = true;
-    const buttons = [get('repoBasic'),get('repoFull')];
+    const buttons = [get('repoBasic'),get('repoFull'),get('smartRun')];
     buttons.forEach(b => b.disabled = true);
-    const status = get('repoResult');
+    const status = statusEl || get('repoResult');
+    // Vindo da caixa única: sincroniza o campo do painel avançado para a guarda anti-edição funcionar.
+    if (urlOverride) get('repoUrl').value = input;
     status.textContent = 'Consultando o repositório no GitHub...';
     try {
       const response = await fetch(`/api/repository?repo=${encodeURIComponent(repoName)}`,{signal:AbortSignal.timeout?.(25000)});
@@ -612,13 +694,13 @@
       const info = result.data;
       if (get('repoUrl').value.trim() !== input) {toast('O link do repositório mudou. Nada foi aplicado.','warn');return;}
       status.textContent = 'Analisando dados públicos com Gemini...';
-      const aiData = await askAI('repository',bundleRepoEvidence(info,mode));
-      if (!aiData) {status.textContent='Não foi possível analisar. Configure GEMINI_API_KEY na Vercel para ativar a IA.';return;}
-      if (get('repoUrl').value.trim() !== input) {toast('O link mudou durante a geração. Nada foi alterado.','warn');return;}
+      const aiData = await askAI('repository',bundleRepoEvidence(info,mode), true);
+      if (!aiData) {status.textContent='Não foi possível analisar. Configure GEMINI_API_KEY na Vercel para ativar a IA.';return false;}
+      if (get('repoUrl').value.trim() !== input) {toast('O link mudou durante a geração. Nada foi alterado.','warn');return false;}
       const hasData=FIELDS.filter(k=>k!=='releaseDate').some(k=>state[k]?.trim()) || state.links.some(l=>l.url.trim());
       if (hasData && !window.confirm('Substituir os dados atuais pelos dados do repositório?')) {
         status.textContent = 'Importação cancelada. Nenhum campo foi alterado.';
-        return;
+        return false;
       }
       const changes=repoFieldsFromAI(aiData,info,mode);
       const keepMode=state.mode;
@@ -626,6 +708,8 @@
       state.mode=keepMode;
       state.repoUrl=input;
       state.releaseDate=''; // Never treat today's date as a repository release date.
+      state.commitsCache=((info.releaseCommits?.length ? info.releaseCommits : info.commits) || []).map(c=>c.message).join('\n').slice(0,15000);
+      get('verifyStatus').hidden = true;
       for (const [key,value] of Object.entries(changes)) state[key]=value;
       state.hashtags=generateTags();
       if (mode==='full') {
@@ -648,11 +732,201 @@
       }
       clearBanner();renderFields();save();
       get('repoResult').textContent = status.textContent;
-      // Keep the git log ready for generating a separate changelog from branch commits.
-      if (info.commits?.length) {get('aiSource').value='commits';get('aiSource').dispatchEvent(new Event('change'));get('aiInput').value=info.commits.map(c=>c.message).join('\n').slice(0,15000);}
+      // Keep the git log ready for generating a separate changelog and for AI verification.
+      const commitSource=(info.releaseCommits?.length ? info.releaseCommits : info.commits) || [];
+      if (commitSource.length) {get('aiSource').value='commits';get('aiSource').dispatchEvent(new Event('change'));get('aiInput').value=commitSource.map(c=>c.message).join('\n').slice(0,15000);}
       toast('Campos preenchidos. Confira o post e os links.');
-    } catch(e) {status.textContent=e.message || 'Não foi possível consultar o repositório.';toast(status.textContent,'error');}
+      return true;
+    } catch(e) {status.textContent=e.message || 'Não foi possível consultar o repositório.';toast(status.textContent,'error');return false;}
     finally {repoBusy=false;buttons.forEach(b=>b.disabled=false);}
+  }
+
+  /* ---- Base de dispositivos (devices.js) ---- */
+  const devices = Array.isArray(window.ROMPOST_DEVICES) ? window.ROMPOST_DEVICES : [];
+  const DEVICE_INDEX = new Map(devices.map(d => [d.c, d]));
+  const normalizeText = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  function deviceMatches(query, limit = 8) {
+    const q = normalizeText(query.trim());
+    if (q.length < 2) return [];
+    const out = [];
+    for (const d of devices) {
+      const code = normalizeText(d.c);
+      const name = normalizeText(d.n);
+      const vendor = normalizeText(d.v);
+      if (code.startsWith(q) || code.includes(q) || name.includes(q) || vendor.includes(q) || `${vendor} ${name}`.includes(q)) {
+        out.push(d);
+        if (out.length >= limit) break;
+      }
+    }
+    return out;
+  }
+  function showDeviceSuggest() {
+    const input = get('deviceName');
+    const box = get('deviceSuggest');
+    const items = deviceMatches(input.value);
+    if (!items.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.innerHTML = items.map(d => `<button type="button" data-code="${htmlEsc(d.c)}" data-name="${htmlEsc(d.n)}"><strong>${htmlEsc(d.n)}</strong><span>${htmlEsc(d.v)} · ${htmlEsc(d.c)}</span></button>`).join('');
+    box.hidden = false;
+  }
+  function pickDevice(button) {
+    const name = button.dataset.name.split(' / ')[0];
+    const code = button.dataset.code;
+    state.deviceName = `${name} / ${code}`;
+    get('deviceName').value = state.deviceName;
+    get('deviceSuggest').hidden = true;
+    if (!state.tagsManual) { state.hashtags = generateTags(); get('hashtags').value = state.hashtags; renderTagChips(); }
+    update();
+    toast(`Dispositivo aplicado: ${name} (${code}).`);
+  }
+  /* ---- Chips de hashtags ---- */
+  function tagTokens() { return state.hashtags.split(/\s+/).map(t => t.trim()).filter(Boolean); }
+  function renderTagChips() {
+    const box = get('tagChips');
+    if (!box) return;
+    const tokens = tagTokens();
+    box.innerHTML = tokens.map((t, i) => `<span class="tag-chip">${htmlEsc(t)}<button type="button" data-tag="${i}" aria-label="Remover ${htmlEsc(t)}">×</button></span>`).join('');
+    box.hidden = !tokens.length;
+  }
+  function removeTag(index) {
+    const tokens = tagTokens();
+    tokens.splice(index, 1);
+    state.hashtags = tokens.join(' ');
+    state.tagsManual = true;
+    get('hashtags').value = state.hashtags;
+    renderTagChips();
+    update();
+  }
+  /* ---- Caixa única inteligente ---- */
+  function detectKind(text) {
+    const t = String(text || '').trim();
+    if (!t) return null;
+    if (/^https?:\/\/(www\.)?github\.com\/[\w.-]+\/[\w.-]+/i.test(t) || /^[\w.-]+\/[\w.-]+$/.test(t)) return 'repo';
+    const tagCount = (t.match(/#[A-Za-z0-9_]+/g) || []).length;
+    if (tagCount >= 2 && /(t\.me|@[a-zA-Z0-9_]{5,32}|▪|Download|Changelog|By:|Join:|Follow:)/i.test(t)) return 'oldpost';
+    return 'commits';
+  }
+  const KIND_LABEL = { repo: 'repositório do GitHub', oldpost: 'post antigo', commits: 'commits' };
+  async function runSmart() {
+    if (aiBusy || repoBusy) { toast('Aguarde a análise anterior terminar.', 'warn'); return; }
+    const raw = get('smartInput').value;
+    const kind = detectKind(raw);
+    if (!kind) { toast('Cole algo para analisar: link do GitHub, commits ou post antigo.', 'warn'); return; }
+    const status = get('smartStatus');
+    const box = get('smartBox');
+    status.textContent = `Detectado: ${KIND_LABEL[kind]}. Analisando…`;
+    box.classList.add('busy');
+    let ok = false;
+    try {
+      if (kind === 'repo') {
+        ok = await generateFromRepository('full', raw.trim(), status);
+      } else if (kind === 'oldpost') {
+        get('aiSource').value = 'oldpost';
+        get('aiSource').dispatchEvent(new Event('change'));
+        get('aiInput').value = raw.trim();
+        ok = await processAIInput('import');
+      } else {
+        get('aiSource').value = 'commits';
+        get('aiSource').dispatchEvent(new Event('change'));
+        get('aiInput').value = raw.trim();
+        ok = await processAIInput('changelog');
+      }
+      if (ok) status.textContent = 'Análise concluída. Revise os campos e a prévia ao lado.';
+      else if (kind !== 'repo') status.textContent = 'Não foi possível analisar agora. Tente novamente em instantes.';
+    } finally { box.classList.remove('busy'); }
+  }
+  /* ---- Verificador do changelog (LLM-as-judge) ---- */
+  async function verifyChangelog() {
+    if (aiBusy) return;
+    const changelog = state.changelog.trim();
+    if (!changelog) { toast('Preencha o changelog antes de verificar.', 'warn'); return; }
+    const commits = state.commitsCache.trim();
+    if (!commits) { toast('Sem commits para comparar. Gere um post de um repositório ou cole commits na caixa de análise.', 'warn'); return; }
+    const status = get('verifyStatus');
+    status.hidden = false;
+    status.className = 'verify-status';
+    status.textContent = 'Verificando cada linha contra os commits originais…';
+    const data = await askAI('verify', JSON.stringify({ changelog, commits: commits.split('\n').slice(0, 120) }), true);
+    if (!data) { status.textContent = 'Não foi possível verificar agora. Tente novamente.'; return; }
+    if (data.status === 'ok') {
+      status.className = 'verify-status ok';
+      status.textContent = '✓ Todas as linhas do changelog têm suporte nos commits.';
+    } else {
+      status.className = 'verify-status bad';
+      status.innerHTML = `${data.issues.length} linha(s) sem suporte claro:<br>${data.issues.map(htmlEsc).join('<br>')}`;
+    }
+  }
+  /* ---- Gerador de banner em canvas ---- */
+  let bannerObjectUrl = '';
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+  async function generateBanner() {
+    const name = state.romName.trim() || 'Custom ROM';
+    try { if (document.fonts?.ready) await document.fonts.ready; } catch { /* fontes opcionais */ }
+    const canvas = document.createElement('canvas');
+    canvas.width = 1280; canvas.height = 640;
+    const ctx = canvas.getContext('2d');
+    const background = ctx.createLinearGradient(0, 0, 1280, 640);
+    background.addColorStop(0, '#221b3a');
+    background.addColorStop(.55, '#35235c');
+    background.addColorStop(1, '#1b2440');
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, 1280, 640);
+    const glow = (x, y, radius, color) => {
+      const rg = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      rg.addColorStop(0, color);
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = rg;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    };
+    glow(1120, 90, 340, 'rgba(139,92,246,.4)');
+    glow(140, 560, 380, 'rgba(99,102,241,.32)');
+    glow(640, 700, 420, 'rgba(236,72,153,.14)');
+    ctx.strokeStyle = 'rgba(255,255,255,.05)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= 1280; x += 64) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 640); ctx.stroke(); }
+    for (let y = 0; y <= 640; y += 64) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(1280, y); ctx.stroke(); }
+    ctx.textBaseline = 'alphabetic';
+    let size = 108;
+    const font = weight => `${weight} ${size}px Manrope, 'Segoe UI', sans-serif`;
+    ctx.font = font(800);
+    while (ctx.measureText(name).width > 1120 && size > 40) { size -= 4; ctx.font = font(800); }
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(name, 80, 300);
+    const meta = [state.romVersion.trim(), state.androidVersion ? `Android ${state.androidVersion}` : ''].filter(Boolean).join('  ·  ');
+    if (meta) { ctx.font = `600 44px Manrope, 'Segoe UI', sans-serif`; ctx.fillStyle = '#c9b8ff'; ctx.fillText(meta, 80, 372); }
+    if (state.deviceName.trim()) { ctx.font = `500 38px Manrope, 'Segoe UI', sans-serif`; ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillText(state.deviceName.trim(), 80, 430); }
+    const stamp = [state.releaseDate ? dateDisplay(state.releaseDate) : '', 'rompost.'].filter(Boolean).join('   ·   ');
+    ctx.font = `700 26px Manrope, 'Segoe UI', sans-serif`;
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.fillText(stamp, 80, 570);
+    if (state.buildType) {
+      ctx.font = `800 30px Manrope, 'Segoe UI', sans-serif`;
+      const w = ctx.measureText(state.buildType).width + 48;
+      ctx.fillStyle = 'rgba(139,92,246,.28)';
+      roundRect(ctx, 1280 - 80 - w, 90, w, 54, 27); ctx.fill();
+      ctx.strokeStyle = 'rgba(201,184,255,.6)';
+      ctx.lineWidth = 2;
+      roundRect(ctx, 1280 - 80 - w, 90, w, 54, 27); ctx.stroke();
+      ctx.fillStyle = '#e9e0ff';
+      ctx.fillText(state.buildType, 1280 - 80 - w + 24, 127);
+    }
+    canvas.toBlob(blob => {
+      if (!blob) { toast('Não foi possível gerar o banner neste navegador.', 'error'); return; }
+      if (bannerObjectUrl) URL.revokeObjectURL(bannerObjectUrl);
+      bannerObjectUrl = URL.createObjectURL(blob);
+      loadBanner(new File([blob], 'rompost-banner.png', { type: 'image/png' }));
+      const download = get('bannerDownload');
+      download.href = bannerObjectUrl;
+      download.hidden = false;
+      toast('Banner gerado. Baixe o PNG e anexe no Telegram.');
+    }, 'image/png');
   }
 
   function bind() {
@@ -687,7 +961,7 @@
       const el = get(id);
       el.addEventListener(['SELECT'].includes(el.tagName) || el.type === 'date' ? 'change' : 'input', () => {
         state[id] = el.value;
-        if (id === 'hashtags') state.tagsManual = true;
+        if (id === 'hashtags') { state.tagsManual = true; renderTagChips(); }
         if (['romName','androidVersion','buildType','deviceName'].includes(id) && !state.tagsManual) {
           state.hashtags = generateTags();
           get('hashtags').value = state.hashtags;
@@ -735,10 +1009,36 @@
     get('themeToggle').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
     get('exampleBtn').addEventListener('click', example);
     get('resetBtn').addEventListener('click', reset);
+    get('smartRun').addEventListener('click', runSmart);
+    const smartBox = get('smartBox');
+    for (const type of ['dragenter','dragover']) smartBox.addEventListener(type, e => {e.preventDefault();smartBox.classList.add('drag-over');});
+    for (const type of ['dragleave','drop']) smartBox.addEventListener(type, e => {e.preventDefault();smartBox.classList.remove('drag-over');});
+    smartBox.addEventListener('drop', e => {
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      if (/\.zip$/i.test(file.name) || file.type === 'application/zip') inspectRomZip(file);
+      else if (/^image\/(png|jpe?g|webp)$/.test(file.type)) loadBanner(file);
+    });
+    smartBox.addEventListener('paste', e => {
+      const file = [...(e.clipboardData?.files || [])][0];
+      if (!file) return;
+      if (/\.zip$/i.test(file.name) || file.type === 'application/zip') { e.preventDefault(); inspectRomZip(file); }
+      else if (/^image\/(png|jpe?g|webp)$/.test(file.type)) { e.preventDefault(); loadBanner(file); }
+    });
+    get('deviceName').addEventListener('input', showDeviceSuggest);
+    get('deviceName').addEventListener('focus', showDeviceSuggest);
+    get('deviceSuggest').addEventListener('mousedown', e => { const b = e.target.closest('button[data-code]'); if (b) { e.preventDefault(); pickDevice(b); } });
+    document.addEventListener('click', e => { if (!e.target.closest('.device-field')) get('deviceSuggest').hidden = true; });
+    get('tagChips').addEventListener('click', e => { const b = e.target.closest('button[data-tag]'); if (b) removeTag(Number(b.dataset.tag)); });
+    get('bannerGen').addEventListener('click', generateBanner);
+    get('verifyBtn').addEventListener('click', verifyChangelog);
+    get('styleMemory').addEventListener('input', scheduleStyleSave);
+    ['by','follow','join'].forEach(id => get(id).addEventListener('input', scheduleProfileSave));
     window.addEventListener('pagehide', () => {clearTimeout(saveTimeout);save();});
   }
   bind();
   setTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
   if (!state.tagsManual && state.romName.trim() && !state.hashtags.trim()) state.hashtags = generateTags();
+  try { get('styleMemory').value = localStorage.getItem(STYLE_KEY) || ''; } catch { /* armazenamento bloqueado */ }
   renderFields();
 })();

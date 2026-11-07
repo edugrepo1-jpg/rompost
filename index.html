@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f6f4fa">
   <script>try{const t=localStorage.getItem("rompost:theme:v2");document.documentElement.dataset.theme=t==="light"||t==="dark"?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");}catch{document.documentElement.dataset.theme="light"}</script>
-  <meta name="description" content="Gere posts de Custom ROM para o Telegram, com links clicáveis e prévia instantânea.">
+  <meta name="description" content="Gere posts de Custom ROM para o Telegram, com links clicáveis e prévia instantânea. Cole o link do GitHub, os commits ou o ZIP da ROM e deixe a IA montar o post.">
   <title>ROM Post — Posts para Custom ROMs</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script src="devices.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -22,7 +23,7 @@
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4.5 4.5L19 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-link" viewBox="0 0 24 24"><path d="M9.5 14.5a5 5 0 0 0 7.1 0l2.4-2.4a5 5 0 0 0-7.1-7.1l-1.3 1.3m2.9 3.2a5 5 0 0 0-7.1 0L4 11.9a5 5 0 0 0 7.1 7.1l1.3-1.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
     <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 8v-5m0 5h-5M19 8a8 8 0 1 0 1 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -30,6 +31,9 @@
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.2 15.4A8.4 8.4 0 0 1 8.6 3.8 8.7 8.7 0 1 0 20.2 15.4Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42m0-14.14-1.42 1.42M6.35 17.65l-1.42 1.42" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
     <symbol id="i-lightning" viewBox="0 0 24 24"><path d="M13.5 2 5 13h6l-1 9 9-12h-6l.5-8Z" fill="currentColor"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.4 3 8.4 7 10 4-1.6 7-5.6 7-10V6l-7-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m9 11.5 2 2 4-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-wand" viewBox="0 0 24 24"><path d="m5 19 9.5-9.5M17 3.5l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9.9-2.1ZM7.5 4l.6 1.4 1.4.6-1.4.6L7.5 8l-.6-1.4L5.5 6l1.4-.6L7.5 4ZM18.5 13l.6 1.4 1.4.6-1.4.6-.6 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/></symbol>
+    <symbol id="i-zip" viewBox="0 0 24 24"><path d="M6 3h12v18H6V3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 3v3m0 2v3m0 2v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="10.4" y="15.5" width="3.2" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/></symbol>
   </svg>
 
   <div class="page-glow glow-a"></div><div class="page-glow glow-b"></div>
@@ -42,15 +46,28 @@
     <main id="inicio">
       <section class="hero">
         <h1>Posts de ROM <span>para Telegram.</span></h1>
-        <p>Preencha, confira e copie. Sem login.</p>
+        <p>Cole qualquer coisa. A IA preenche, você revisa e copia. Sem login.</p>
+        <div class="hero-chips" aria-hidden="true"><span>Link do GitHub → post pronto</span><span>ZIP → dados da ROM</span><span>Commits → changelog</span></div>
       </section>
 
       <div class="workspace">
         <section class="editor panel" aria-label="Editor do post">
           <div class="panel-intro"><div><h2>Dados do post</h2><p>ROM, links e detalhes da publicação.</p></div><button id="exampleBtn" type="button" class="soft-button">Carregar exemplo <svg class="icon"><use href="#i-arrow"/></svg></button></div>
 
+          <div class="smartbox" id="smartBox">
+            <label class="field-label" for="smartInput"><svg class="icon"><use href="#i-wand"/></svg> Comece colando qualquer coisa</label>
+            <textarea id="smartInput" rows="3" maxlength="15000" placeholder="Cole o link do GitHub da ROM, os commits ou um post antigo…&#10;…ou solte aqui o ZIP da ROM / a imagem do banner"></textarea>
+            <div class="smart-actions">
+              <button type="button" id="smartRun" class="ai-main-btn"><span class="ai-star">✦</span> Analisar e preencher</button>
+              <label class="zip-button" for="romZipInput" title="Lê o ZIP localmente, sem upload"><svg class="icon"><use href="#i-zip"/></svg> Ler ZIP da ROM</label>
+              <span id="smartStatus" class="ai-note" role="status">Detecção automática: link do GitHub, commits, post antigo ou ZIP.</span>
+            </div>
+            <input id="romZipInput" type="file" accept=".zip,application/zip" hidden>
+            <span id="zipStatus" role="status" class="ai-note" hidden></span>
+          </div>
+
           <details class="ai-panel" id="aiPanel">
-            <summary><span class="ai-dot">✦</span><strong>IA e importação</strong><small>Commits, post ou repositório</small><svg class="icon"><use href="#i-chevron"/></svg></summary>
+            <summary><span class="ai-dot">✦</span><strong>IA e importação avançadas</strong><small>Controles manuais e memória de estilo</small><svg class="icon"><use href="#i-chevron"/></svg></summary>
             <div class="ai-body">
               <label class="field"><span>Conteúdo</span><select id="aiSource" aria-label="Tipo de conteúdo"><option value="commits">Commits</option><option value="oldpost">Post antigo</option></select></label>
               <label class="field"><span id="aiTextLabel">Cole os commits</span><textarea id="aiInput" rows="4" maxlength="15000" placeholder="fix: camera crash&#10;update power HAL&#10;sepolicy: address denials"></textarea></label>
@@ -60,20 +77,13 @@
                 <div class="ai-actions repo-actions"><button type="button" id="repoBasic" class="mini-action">Gerar do repositório</button><button type="button" id="repoFull" class="ai-main-btn">Gerar completo</button></div>
                 <p class="ai-note" id="repoResult" role="status">Dados editáveis. O download só será incluído se existir um ZIP na release mais recente.</p>
               </div>
+              <div class="style-memory">
+                <label class="field"><span>Memória de estilo do canal</span><textarea id="styleMemory" rows="3" maxlength="6000" placeholder="Cole 1 ou 2 posts antigos do seu canal. A IA imita o formato e o tom deles ao gerar changelogs e posts.&#10;&#10;Ex.: #PixelOS #ROM …&#10;▪ Download | Recovery&#10;Changelog:&#10;• …"></textarea></label>
+                <p class="ai-note">Salvo só neste navegador. Usado como exemplo de escrita — a IA nunca copia o conteúdo. Ativo quando o campo tem texto.</p>
+              </div>
               <p class="ai-note">Gemini gratuito: os textos enviados à IA podem ser usados pelo Google para melhorar o serviço. Não cole informações privadas.</p>
             </div>
           </details>
-
-          <div class="form-section no-top">
-            <div class="section-top"><span class="section-icon lavender"><svg class="icon"><use href="#i-image"/></svg></span><h3>Banner</h3><span class="field-optional">opcional</span></div>
-            <div class="upload-row" id="uploadArea" role="button" tabindex="0" aria-label="Selecionar banner da ROM">
-              <div class="upload-image" id="uploadThumb"><svg class="icon"><use href="#i-image"/></svg></div>
-              <div class="upload-text"><strong id="uploadTitle">Selecionar imagem</strong><span id="uploadSubtitle">PNG, JPG ou WebP</span></div>
-              <span class="upload-action" aria-hidden="true"><svg class="icon"><use href="#i-plus"/></svg></span>
-            </div>
-            <input type="file" accept="image/png,image/jpeg,image/webp" id="bannerInput" hidden>
-            <button id="removeBanner" type="button" class="remove-banner" hidden>Remover imagem</button>
-          </div>
 
           <div class="form-section">
             <div class="section-top"><span class="section-icon violet"><svg class="icon"><use href="#i-lightning"/></svg></span><h3>ROM</h3></div>
@@ -82,12 +92,29 @@
               <label class="field"><span>Versão</span><input id="romVersion" maxlength="45" placeholder="Ex.: 17.0"></label>
               <label class="field"><span>Android</span><div class="select-wrap"><select id="androidVersion"><option value="">Selecione</option><option value="17">Android 17</option><option value="16">Android 16</option><option value="15">Android 15</option><option value="14">Android 14</option><option value="13">Android 13</option><option value="12">Android 12</option><option value="11">Android 11</option><option value="10">Android 10</option></select><svg class="icon"><use href="#i-chevron"/></svg></div></label>
               <label class="field"><span>Build</span><div class="select-wrap"><select id="buildType"><option value="">Selecione</option><option value="UNOFFICIAL">UNOFFICIAL</option><option value="OFFICIAL">OFFICIAL</option><option value="BETA">BETA</option><option value="STABLE">STABLE</option></select><svg class="icon"><use href="#i-chevron"/></svg></div></label>
-              <label class="field"><span>Dispositivo / Codinome</span><input id="deviceName" maxlength="100" placeholder="Ex.: POCO F3 / alioth"></label>
-              <label class="field"><span>Data do lançamento</span><input type="date" id="releaseDate"></label>
-              <div class="field span-two tag-field"><div class="field-head"><label for="hashtags">Hashtags</label><button id="autoTags" class="inline-link" type="button">Gerar tags</button></div><input id="hashtags" maxlength="600" placeholder="#PixelOS #ROM #Unofficial #A16 #alioth"></div>
+              <label class="field device-field"><span>Dispositivo / Codinome</span><input id="deviceName" maxlength="100" placeholder="Ex.: POCO F3 / alioth" autocomplete="off"><div class="device-suggest" id="deviceSuggest" hidden></div></label>
+              <label class="field span-two"><span>Data do lançamento</span><input type="date" id="releaseDate"></label>
+              <div class="field span-two tag-field"><div class="field-head"><label for="hashtags">Hashtags</label><button id="autoTags" class="inline-link" type="button">Gerar tags</button></div><input id="hashtags" maxlength="600" placeholder="#PixelOS #ROM #Unofficial #A16 #alioth"><div class="tag-chips" id="tagChips" aria-label="Hashtags do post"></div></div>
             </div>
-            <div class="zip-tools"><label class="zip-button" for="romZipInput"><svg class="icon"><use href="#i-plus"/></svg> Ler ZIP da ROM</label><input id="romZipInput" type="file" accept=".zip,application/zip" hidden><span id="zipStatus" role="status">Leitura local, sem upload</span></div>
           </div>
+
+          <details class="collapse" id="bannerPanel">
+            <summary><span class="section-icon lavender"><svg class="icon"><use href="#i-image"/></svg></span><strong>Banner</strong><small>opcional</small><svg class="icon chev"><use href="#i-chevron"/></svg></summary>
+            <div class="collapse-body">
+              <div class="upload-row" id="uploadArea" role="button" tabindex="0" aria-label="Selecionar banner da ROM">
+                <div class="upload-image" id="uploadThumb"><svg class="icon"><use href="#i-image"/></svg></div>
+                <div class="upload-text"><strong id="uploadTitle">Selecionar imagem</strong><span id="uploadSubtitle">PNG, JPG ou WebP</span></div>
+                <span class="upload-action" aria-hidden="true"><svg class="icon"><use href="#i-plus"/></svg></span>
+              </div>
+              <input type="file" accept="image/png,image/jpeg,image/webp" id="bannerInput" hidden>
+              <div class="banner-tools">
+                <button id="removeBanner" type="button" class="mini-action" hidden>Remover imagem</button>
+                <button id="bannerGen" type="button" class="mini-action"><svg class="icon"><use href="#i-wand"/></svg> Gerar banner automático</button>
+                <a id="bannerDownload" class="mini-action download-link" hidden download="rompost-banner.png">Baixar PNG</a>
+              </div>
+              <p class="ai-note">O gerador usa os campos ROM, versão e dispositivo para desenhar um banner pronto para o Telegram.</p>
+            </div>
+          </details>
 
           <div class="form-section">
             <div class="section-top"><span class="section-icon peach"><svg class="icon"><use href="#i-link"/></svg></span><h3>Links</h3><span class="field-optional">opcionais</span></div>
@@ -98,7 +125,7 @@
           <div class="form-section">
             <div class="section-top"><span class="section-icon mint"><svg class="icon"><use href="#i-check"/></svg></span><h3>Changelog, Notes e Credits</h3></div>
             <div class="fields-stack">
-              <div class="field"><div class="field-actions"><label for="changelog">Changelog</label><span class="action-buttons"><button type="button" class="mini-action" data-translate="changelog" title="Traduz a seleção, ou o campo todo">Traduzir</button><button type="button" class="mini-action undo-action" data-undo="changelog" hidden>Desfazer</button><button type="button" class="mini-action" id="summarizeBtn">Resumir</button></span></div><textarea id="changelog" rows="3" placeholder="• Initial release&#10;• Fixed camera issues&#10;• Improved performance"></textarea></div>
+              <div class="field"><div class="field-actions"><label for="changelog">Changelog</label><span class="action-buttons"><button type="button" class="mini-action" data-translate="changelog" title="Traduz a seleção, ou o campo todo">Traduzir</button><button type="button" class="mini-action undo-action" data-undo="changelog" hidden>Desfazer</button><button type="button" class="mini-action" id="summarizeBtn">Resumir</button><button type="button" class="mini-action" id="verifyBtn" title="Confere cada linha do changelog contra os commits originais"><svg class="icon"><use href="#i-shield"/></svg> Verificar</button></span></div><textarea id="changelog" rows="3" placeholder="• Initial release&#10;• Fixed camera issues&#10;• Improved performance"></textarea><p class="verify-status" id="verifyStatus" role="status" hidden></p></div>
               <div class="field"><div class="field-actions"><label for="notes">Notes</label><button type="button" class="mini-action" data-translate="notes" title="Traduz a seleção, ou o campo todo">Traduzir</button><button type="button" class="mini-action undo-action" data-undo="notes" hidden>Desfazer</button></div><textarea id="notes" rows="3" placeholder="• GApps included&#10;• SELinux: Enforcing&#10;• Clean flash recommended"></textarea></div>
               <div class="field"><div class="field-actions"><label for="credits">Credits</label><button type="button" class="mini-action" data-translate="credits" title="Traduz a seleção, ou o campo todo">Traduzir</button><button type="button" class="mini-action undo-action" data-undo="credits" hidden>Desfazer</button></div><textarea id="credits" rows="3" placeholder="• Thanks @developer for device tree&#10;• Thanks @tester for testing"></textarea></div>
               <div class="credit-tools"><input id="creditUser" type="text" maxlength="33" autocomplete="off" placeholder="@developer" aria-label="Usuário do crédito"><input id="creditRole" type="text" maxlength="100" placeholder="kernel, device tree..." aria-label="Contribuição"><button id="addCredit" type="button" class="mini-action">+ Crédito</button></div>
@@ -106,14 +133,17 @@
             <p class="help-line">Selecione um trecho antes de traduzir para alterar apenas ele. URLs, <code>**negrito**</code> e <code>@usuario</code> são preservados. Créditos com @ viram links.</p>
           </div>
 
-          <div class="form-section last-section">
-            <div class="section-top"><span class="section-icon lightpink"><svg class="icon"><use href="#i-spark"/></svg></span><h3>Rodapé</h3><span class="field-optional">opcionais</span></div>
-            <div class="form-grid footer-grid">
-              <label class="field"><span>By</span><input id="by" maxlength="300" placeholder="@developer"></label>
-              <label class="field"><span>Follow</span><input id="follow" maxlength="300" placeholder="@canal"></label>
-              <label class="field span-two"><span>Join</span><input id="join" maxlength="300" placeholder="@grupo"></label>
+          <details class="collapse" id="footerPanel">
+            <summary><span class="section-icon lightpink"><svg class="icon"><use href="#i-spark"/></svg></span><strong>Rodapé</strong><small>By · Follow · Join</small><svg class="icon chev"><use href="#i-chevron"/></svg></summary>
+            <div class="collapse-body">
+              <div class="form-grid footer-grid">
+                <label class="field"><span>By</span><input id="by" maxlength="300" placeholder="@developer"></label>
+                <label class="field"><span>Follow</span><input id="follow" maxlength="300" placeholder="@canal"></label>
+                <label class="field span-two"><span>Join</span><input id="join" maxlength="300" placeholder="@grupo"></label>
+              </div>
+              <p class="ai-note">Salvo automaticamente como padrão dos seus próximos posts (perfil do canal).</p>
             </div>
-          </div>
+          </details>
         </section>
 
         <aside class="preview-side" aria-label="Prévia do Telegram">
@@ -121,17 +151,16 @@
             <div class="preview-heading"><div><h2>Prévia</h2><p>Telegram</p></div><span class="live-indicator"><span></span> Em tempo real</span></div>
             <div class="tg-shell">
               <div class="tg-top"><div class="tg-avatar"><svg class="icon"><use href="#i-spark"/></svg></div><div><strong>Canal de ROMs</strong><small>Visualização do post</small></div><span class="tg-dots">•••</span></div>
-              <div class="tg-body"><span class="tg-date">Hoje</span><article class="tg-post"><div class="tg-image" id="previewBanner"><div class="image-fallback"><svg class="icon"><use href="#i-image"/></svg><strong>Banner da ROM</strong><small>Selecione uma imagem</small></div></div><div id="postPreview" class="tg-content"><span class="empty-preview">O post aparece aqui conforme você preenche.</span></div><div class="tg-bottom">agora <span>✓✓</span></div></article></div>
+              <div class="tg-body"><span class="tg-date">Hoje</span><article class="tg-post"><div class="tg-image" id="previewBanner"><div class="image-fallback"><svg class="icon"><use href="#i-image"/></svg><strong>Banner da ROM</strong><small>Selecione ou gere uma imagem</small></div></div><div id="postPreview" class="tg-content"><span class="empty-preview">O post aparece aqui conforme você preenche.</span></div><div class="tg-bottom">agora <span>✓✓</span></div></article></div>
             </div>
             <div class="publication-choice"><span>Publicar como</span><div class="segment" role="radiogroup" aria-label="Modo de publicação"><label><input type="radio" name="mode" value="caption" checked><span>Legenda</span></label><label><input type="radio" name="mode" value="message"><span>Mensagem</span></label></div></div>
             <div class="count-line"><span id="counterLabel">0 / 1024 caracteres</span><span class="count-dot" id="countStatus">OK</span></div>
             <div class="progress"><div id="progressFill"></div></div>
             <p id="lengthWarning" class="length-warning" hidden></p>
-            <button type="button" id="copyRich" class="copy-button"><svg class="icon"><use href="#i-copy"/></svg><span>Copiar post</span><svg class="icon right-arrow"><use href="#i-arrow"/></svg></button>
-            <button type="button" id="copyPlain" class="plain-button">Copiar com URLs visíveis <svg class="icon"><use href="#i-external"/></svg></button>
+            <button type="button" id="copyRich" class="copy-button"><svg class="icon"><use href="#i-copy"/></svg><span>Copiar post</span></button>
+            <button type="button" id="copyPlain" class="plain-button" title="Texto puro com os endereços escritos por extenso — útil quando o Telegram não aceita os links formatados">Copiar com URLs visíveis <svg class="icon"><use href="#i-external"/></svg></button>
             <p class="bottom-tip">O banner deve ser anexado no Telegram. Cole o texto e confira os links.</p>
           </section>
-          
         </aside>
       </div>
     </main>
