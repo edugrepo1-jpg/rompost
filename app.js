@@ -17,13 +17,14 @@
   const freshState = () => ({
     romName:'', romVersion:'', androidVersion:'', buildType:'', deviceName:'',
     releaseDate:localDate(), hashtags:'', changelog:'', notes:'', credits:'',
-    by:'', follow:'', join:'', mode:'caption', tagsManual:false, links:defaultLinks()
+    by:'', follow:'', join:'', repoUrl:'', mode:'caption', tagsManual:false, links:defaultLinks()
   });
   const slice = (value, max = 20000) => typeof value === 'string' ? value.slice(0, max) : '';
   function restore(raw) {
     const clean = freshState();
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return clean;
     for (const key of FIELDS) clean[key] = slice(raw[key]);
+    clean.repoUrl = slice(raw.repoUrl, 160);
     if (!['', 'UNOFFICIAL', 'OFFICIAL', 'BETA', 'STABLE'].includes(clean.buildType)) clean.buildType = '';
     if (!['', '17', '16', '15', '14', '13', '12', '11', '10'].includes(clean.androidVersion)) clean.androidVersion = '';
     if (clean.releaseDate && !/^\d{4}-\d{2}-\d{2}$/.test(clean.releaseDate)) clean.releaseDate = ''; 
@@ -202,6 +203,7 @@
   function renderFields() {
     for (const field of FIELDS) get(field).value = state[field];
     renderLinks();
+    get('repoUrl').value = state.repoUrl || '';
     renderPreview();
   }
   function save() {
@@ -361,7 +363,326 @@
     document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#15131d' : '#f6f4fa');
     try { localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light'); } catch { /* armazenamento bloqueado */ }
   }
+  // IA: only field-level actions. Inputs are not saved or sent anywhere other than /api/ai.
+  let aiBusy = false;
+  const undoValues = Object.create(null);
+  async function askAI(task, input) {
+    if (aiBusy) return null;
+    if (input.length > 15000) { toast('Use no máximo 15.000 caracteres por consulta.', 'warn'); return null; }
+    aiBusy = true;
+    const buttons = [...document.querySelectorAll('.ai-actions button,[data-translate],#summarizeBtn')];
+    buttons.forEach(b => b.disabled = true);
+    try {
+      const response = await fetch('/api/ai', {
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({task,text:input}),
+        signal:AbortSignal.timeout ? AbortSignal.timeout(30000) : undefined
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `Falha na IA (${response.status}).`);
+      if (!result.data || typeof result.data !== 'object') throw new Error('Resposta da IA inválida.');
+      return result.data;
+    } catch (e) {
+      toast(e.name === 'TimeoutError' ? 'A IA demorou demais. Tente novamente.' : e.message || 'Não foi possível usar a IA.', 'error');
+      return null;
+    } finally { aiBusy = false;buttons.forEach(b=>b.disabled=false); }
+  }
+  function setEditedField(key, value) {
+    if (typeof value !== 'string' || !FIELDS.includes(key)) return;
+    undoValues[key] = state[key];
+    state[key] = slice(value, 12000);
+    get(key).value = state[key];
+    const undoButton = document.querySelector(`[data-undo="${key}"]`);
+    if (undoButton) undoButton.hidden = false;
+    update();
+  }
+  function maskForTranslation(source) {
+    const tokens = [];
+    // Preserve all markup delimiters, exact URLs, @mentions, hashtags, code and file names.
+    // The model translates only text between placeholders; an altered token means rejection.
+    const re = /```[\s\S]*?```|`[^`\n]*`|\]\(https?:\/\/[^\s)]+\)|\[|\*\*|__|https?:\/\/[^\s<>()]+|(?<![\w.%+\-])@[a-zA-Z0-9_]{5,32}\b|#[a-zA-Z0-9_]+\b|\b[a-zA-Z0-9_.\-]+\.(?:zip|img|apk|tar|xml|prop|sh|json)\b|\r?\n/g;
+    const masked = source.replace(re, match => {
+      const mark = `[[[RP_${tokens.length}]]]`;
+      tokens.push(match);
+      return mark;
+    });
+    return {masked,tokens};
+  }
+  function restoreTranslation(answer, tokens) {
+    const found = [...answer.matchAll(/\[\[\[RP_(\d+)\]\]\]/g)].map(m => Number(m[1]));
+    if (found.length !== tokens.length || found.some((v,i)=>v!==i)) return null;
+    return answer.replace(/\[\[\[RP_(\d+)\]\]\]/g, (_,n) => tokens[Number(n)]);
+  }
+  async function translateField(field) {
+    if (aiBusy) return;
+    const area = get(field);
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const snapshot = area.value;
+    const selected = start !== end;
+    const original = selected ? snapshot.slice(start,end) : snapshot;
+    if (!original.trim()) { toast('Escreva algo para traduzir.', 'warn'); return; }
+    if (original.includes('[[[RP_')) {toast('O texto contém uma marca reservada do tradutor.', 'warn');return;}
+    const {masked,tokens} = maskForTranslation(original);
+    const data = await askAI('translate', masked);
+    if (!data) return;
+    if (state[field] !== snapshot) {toast('O campo foi editado durante a tradução; nada foi substituído.', 'warn');return;}
+    const translated = restoreTranslation(data.text, tokens);
+    if (!translated) {toast('A tradução mudou links ou marcações. Texto original preservado.', 'error');return;}
+    const next = selected ? snapshot.slice(0,start)+translated+snapshot.slice(end) : translated;
+    setEditedField(field, next);
+    area.focus();
+    if (selected) area.setSelectionRange(start,start+translated.length);
+    toast(selected ? 'Trecho traduzido. Confira antes de publicar.' : 'Campo traduzido. Confira antes de publicar.');
+  }
+  async function processAIInput(task) {
+    const source = get('aiSource').value;
+    const text = get('aiInput').value.trim();
+    if (text.length < 4) {toast('Cole o conteúdo antes de gerar.', 'warn');return;}
+    const realTask = source === 'oldpost' ? 'import' : task;
+    const before = get('aiInput').value;
+    const data = await askAI(realTask, text);
+    if (!data) return;
+    if (get('aiInput').value !== before || get('aiSource').value !== source) {toast('O conteúdo mudou durante a análise. Resultado não aplicado.', 'warn');return;}
+    if (realTask === 'import') {
+      const keys = FIELDS.filter(k => k !== 'releaseDate' || /^\d{4}-\d{2}-\d{2}$/.test(data[k] || ''));
+      const existing = FIELDS.some(k => state[k]?.trim()) || state.links.some(l=>l.url.trim());
+      if (existing && !window.confirm('Substituir os dados atuais pelos extraídos do post antigo?')) return;
+      const updated = {...state};
+      for (const key of keys) if (typeof data[key] === 'string') updated[key] = data[key];
+      if (Array.isArray(data.links)) updated.links = data.links.filter(l=>l && typeof l.label === 'string' && typeof l.url === 'string' && isValidUrl(l.url)).slice(0,18);
+      updated.androidVersion = String(updated.androidVersion).replace(/^android\s*/i,'').trim();
+      updated.buildType = String(updated.buildType).toUpperCase();
+      updated.tagsManual = Boolean(updated.hashtags.trim());
+      state = restore(updated);
+      if (!state.hashtags.trim()) {state.tagsManual=false;state.hashtags=generateTags();}
+      renderFields();save();
+      toast('Dados importados. Confira links e campos antes de copiar.');
+    } else if (typeof data.text === 'string' && data.text.trim()) {
+      setEditedField('changelog',data.text);
+      toast(realTask==='organize'?'Commits organizados. Revise o changelog.':'Changelog gerado. Revise as mudanças.');
+    }
+  }
+  async function summarizeChangelog() {
+    const before = state.changelog;
+    if (!before.trim()) {toast('Preencha o changelog para resumir.', 'warn');return;}
+    const data = await askAI('summarize',before);
+    if (!data) return;
+    if (state.changelog !== before) {toast('O changelog mudou durante o resumo. Nada foi substituído.','warn');return;}
+    if (typeof data.text === 'string' && data.text.trim()) {setEditedField('changelog',data.text);toast('Changelog resumido. Confira antes de copiar.');}
+  }
+  function insertCredit() {
+    const typed = get('creditUser').value.trim();
+    const user = typed.startsWith('@') ? typed : `@${typed}`;
+    const role = get('creditRole').value.trim().replace(/\s+/g,' ');
+    if (!usernameUrl(user)) {toast('Use um @usuario válido do Telegram (5 a 32 caracteres).','warn');get('creditUser').focus();return;}
+    if (!role) {toast('Informe a contribuição.', 'warn');get('creditRole').focus();return;}
+    const line = `Thanks ${user} for ${role.replace(/^for\s+/i,'')}`;
+    state.credits += (state.credits.trim()?'\n':'') + line;
+    get('credits').value = state.credits;
+    get('creditUser').value='';get('creditRole').value='';
+    update();toast('Crédito adicionado com menção clicável.');
+  }
+  function getZipProperty(content, key) {
+    const line = String(content).split(/\r?\n/).find(row => row.startsWith(key+'='));
+    return line ? line.slice(key.length+1).trim() : '';
+  }
+  async function inspectRomZip(file) {
+    if (!file) return;
+    const info = get('zipStatus');
+    if (!/\.zip$/i.test(file.name)) {toast('Selecione um ZIP de ROM.','warn');return;}
+    info.textContent='Lendo metadados...';
+    try {
+      const size = `${(file.size/1024/1024).toFixed(1)} MB`;
+      if (file.size < 22) throw new Error('ZIP muito pequeno ou inválido.');
+      const tailSize = Math.min(file.size, 65557);
+      const tail = new DataView(await file.slice(file.size-tailSize).arrayBuffer());
+      let eocd = -1;
+      for (let i=tail.byteLength-22;i>=0;i--) if (tail.getUint32(i,true)===0x06054b50 && i+22+tail.getUint16(i+20,true)<=tail.byteLength) {eocd=i;break;}
+      if (eocd < 0) throw new Error('Não foi possível localizar o índice do ZIP.');
+      const entriesCount = tail.getUint16(eocd+10,true);
+      const centralSize = tail.getUint32(eocd+12,true);
+      const centralOffset = tail.getUint32(eocd+16,true);
+      if (entriesCount===65535 || centralOffset===0xffffffff || centralSize>12*1024*1024 || centralOffset+centralSize>file.size) throw new Error('ZIP64 ou índice grande demais para leitura rápida.');
+      const view = new DataView(await file.slice(centralOffset,centralOffset+centralSize).arrayBuffer());
+      const decoder = new TextDecoder();
+      let off=0;
+      const targets=[];
+      const namePattern = /(?:^|\/)(?:META-INF\/com\/(?:android|google\/android)\/metadata|(?:system\/)?system\/build\.prop|(?:system\/)?product\/build\.prop|vendor\/build\.prop)$/i;
+      for (let i=0;i<entriesCount;i++) {
+        if (off+46>view.byteLength || view.getUint32(off,true)!==0x02014b50) throw new Error('Índice ZIP danificado.');
+        const method=view.getUint16(off+10,true);
+        const compressed=view.getUint32(off+20,true);
+        const plain=view.getUint32(off+24,true);
+        const n=view.getUint16(off+28,true),x=view.getUint16(off+30,true),c=view.getUint16(off+32,true);
+        const local=view.getUint32(off+42,true);
+        if (off+46+n+x+c>view.byteLength) throw new Error('Nome de arquivo ZIP inválido.');
+        const name=decoder.decode(new Uint8Array(view.buffer,off+46,n));
+        if (namePattern.test(name) && plain<256*1024 && compressed<256*1024 && (method===0||method===8)) targets.push({name,method,compressed,plain,local});
+        off+=46+n+x+c;
+      }
+      const contents={};
+      for (const entry of targets.slice(0,12)) {
+        const header=new DataView(await file.slice(entry.local,entry.local+30).arrayBuffer());
+        if (header.byteLength<30 || header.getUint32(0,true)!==0x04034b50) continue;
+        const start=entry.local+30+header.getUint16(26,true)+header.getUint16(28,true);
+        if (start+entry.compressed>file.size) continue;
+        let bytes=new Uint8Array(await file.slice(start,start+entry.compressed).arrayBuffer());
+        if (entry.method===8) {
+          if (typeof DecompressionStream==='undefined') continue;
+          const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+          bytes=new Uint8Array(await new Response(stream).arrayBuffer());
+        }
+        if (bytes.byteLength>256*1024 || bytes.byteLength!==entry.plain) continue;
+        contents[entry.name]=decoder.decode(bytes);
+      }
+      const combined=Object.entries(contents);
+      const metadata=combined.filter(([name])=>/metadata$/i.test(name)).map(([,data])=>data).join('\n');
+      const props=combined.filter(([name])=>/build\.prop$/i.test(name)).map(([,data])=>data).join('\n');
+      let android=getZipProperty(props,'ro.build.version.release');
+      if (android) android = (android.match(/^\d+/)||[])[0] || '';
+      const device=getZipProperty(metadata,'post-device') || getZipProperty(props,'ro.product.device') || getZipProperty(props,'ro.product.system.device');
+      const cleanDevice=/^[a-z0-9_-]{2,35}$/i.test(device) ? device : '';
+      const changes=[];
+      if (android && ['', '17','16','15','14','13','12','11','10'].includes(android) && android !== state.androidVersion) changes.push(['androidVersion',android]);
+      if (cleanDevice && !state.deviceName.toLowerCase().includes(cleanDevice.toLowerCase())) changes.push(['deviceName',cleanDevice]);
+      info.textContent=`${file.name} · ${size}`;
+      if (!changes.length) return toast('ZIP lido. Nenhum campo novo compatível encontrado.');
+      if (window.confirm(`ZIP: ${size}\nDados encontrados:\n${changes.map(([k,v])=>k==='androidVersion'?`Android ${v}`:`Dispositivo: ${v}`).join('\n')}\n\nUsar esses dados?`)) {
+        for (const [key,value] of changes) {state[key]=value;get(key).value=value;}
+        if (!state.tagsManual) {state.hashtags=generateTags();get('hashtags').value=state.hashtags;}
+        update();toast('Dados do ZIP aplicados. Confira antes de publicar.');
+      }
+    } catch (e) {info.textContent='Não foi possível ler os metadados';toast(e.message || 'Erro ao ler ZIP.','error');}
+    finally {get('romZipInput').value='';}
+  }
+
+  let repoBusy = false;
+  function extractRepoLink(value) {
+    const raw = String(value || '').trim().replace(/\.git$/i,'').replace(/\/+$/,'');
+    if (/^[a-z0-9-]+\/[a-z0-9_.-]+$/i.test(raw)) return raw;
+    try {
+      const url = new URL(raw);
+      if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'github.com' || url.username || url.password || url.search || url.hash) return '';
+      const match = /^\/([a-z0-9-]+)\/([a-z0-9_.-]+)(?:\/(?:tree|blob|releases|commits)(?:\/.*)?)?\/?$/i.exec(url.pathname);
+      return match ? `${match[1]}/${match[2]}` : '';
+    } catch {return '';}
+  }
+  function appendRepoLink(rows, label, url) {
+    if (!isValidUrl(url)) return;
+    if (rows.some(r => r.url === url)) return;
+    const standard = rows.find(r => r.label === label && !r.url);
+    if (standard) standard.url = url;
+    else if (rows.length < 18) rows.push({label,url});
+  }
+  function bundleRepoEvidence(info, mode) {
+    return JSON.stringify({mode, repository:info.repo,readme:String(info.readme||'').slice(0,3700),
+      release:info.release ? {name:info.release.title,tag:info.release.tag,notes:info.release.notes.slice(0,4000),prerelease:info.release.prerelease, date:info.release.date} : null,
+      commits:(info.commits || []).slice(0,25).map(c => c.message.slice(0,150))}).slice(0,14950);
+  }
+  function repoFieldsFromAI(data, info, mode) {
+    const keys = mode==='full' ? ['romName','romVersion','androidVersion','buildType','deviceName','changelog','notes','credits','by','follow','join'] : ['romName','romVersion','androidVersion','buildType','deviceName'];
+    const changes = {};
+    for (const k of keys) if (typeof data[k] === 'string' && data[k].trim()) changes[k] = slice(data[k].trim(), get(k).maxLength > 0 ? get(k).maxLength : 8000);
+    if (changes.androidVersion) {
+      changes.androidVersion = changes.androidVersion.replace(/^android\s*/i,'').trim();
+      if (!['17','16','15','14','13','12','11','10'].includes(changes.androidVersion)) delete changes.androidVersion;
+    }
+    if (changes.buildType) {
+      changes.buildType = changes.buildType.toUpperCase();
+      if (!['UNOFFICIAL','OFFICIAL','STABLE','BETA'].includes(changes.buildType)) delete changes.buildType;
+    }
+    if (mode==='full' && info.release?.date && /^\d{4}-\d{2}-\d{2}/.test(info.release.date)) changes.releaseDate=info.release.date.slice(0,10);
+    if (mode==='full' && info.release?.prerelease && !changes.buildType) changes.buildType = 'BETA';
+    return changes;
+  }
+  async function generateFromRepository(mode) {
+    if (repoBusy || aiBusy) return;
+    const input = get('repoUrl').value.trim();
+    const repoName = extractRepoLink(input);
+    if (!repoName) {toast('Informe um link de repositório público do GitHub.','warn');get('repoUrl').focus();return;}
+    repoBusy = true;
+    const buttons = [get('repoBasic'),get('repoFull')];
+    buttons.forEach(b => b.disabled = true);
+    const status = get('repoResult');
+    status.textContent = 'Consultando o repositório no GitHub...';
+    try {
+      const response = await fetch(`/api/repository?repo=${encodeURIComponent(repoName)}`,{signal:AbortSignal.timeout?.(25000)});
+      const result = await response.json().catch(()=>({}));
+      if (!response.ok || !result.data) throw new Error(result.error || 'Falha ao consultar o GitHub.');
+      const info = result.data;
+      if (get('repoUrl').value.trim() !== input) {toast('O link do repositório mudou. Nada foi aplicado.','warn');return;}
+      status.textContent = 'Analisando dados públicos com Gemini...';
+      const aiData = await askAI('repository',bundleRepoEvidence(info,mode));
+      if (!aiData) {status.textContent='Não foi possível analisar. Configure GEMINI_API_KEY na Vercel para ativar a IA.';return;}
+      if (get('repoUrl').value.trim() !== input) {toast('O link mudou durante a geração. Nada foi alterado.','warn');return;}
+      const hasData=FIELDS.filter(k=>k!=='releaseDate').some(k=>state[k]?.trim()) || state.links.some(l=>l.url.trim());
+      if (hasData && !window.confirm('Substituir os dados atuais pelos dados do repositório?')) {
+        status.textContent = 'Importação cancelada. Nenhum campo foi alterado.';
+        return;
+      }
+      const changes=repoFieldsFromAI(aiData,info,mode);
+      const keepMode=state.mode;
+      state=freshState();
+      state.mode=keepMode;
+      state.repoUrl=input;
+      state.releaseDate=''; // Never treat today's date as a repository release date.
+      for (const [key,value] of Object.entries(changes)) state[key]=value;
+      state.hashtags=generateTags();
+      if (mode==='full') {
+        appendRepoLink(state.links,'Source',info.repo.url);
+        if (info.release?.url) appendRepoLink(state.links,'Release',info.release.url);
+        const assets = info.release?.zipAssets || [];
+        for (const asset of assets.slice(0,5)) {
+          let label = assets.length===1 ? 'Download' : `Download — ${String(asset.name||'ZIP').replace(/\.zip$/i,'').slice(0,34)}`;
+          appendRepoLink(state.links,label,asset.url);
+        }
+        if (!assets.length) {
+          status.textContent='Dados carregados. Nenhum ZIP publicado na release mais recente; informe o download manualmente.';
+        } else {
+          status.textContent=`Dados carregados da release ${info.release.tag || info.release.title}. ${assets.length} ZIP(s) encontrado(s). Confira versão e variantes.`;
+        }
+        if (!info.release) status.textContent='Dados carregados, mas o repositório não possui Releases publicadas. Sem link de download.';
+      } else {
+        appendRepoLink(state.links,'Source',info.repo.url);
+        status.textContent='Informações básicas geradas. Revise os dados antes de publicar.';
+      }
+      clearBanner();renderFields();save();
+      get('repoResult').textContent = status.textContent;
+      // Keep the git log ready for generating a separate changelog from branch commits.
+      if (info.commits?.length) {get('aiSource').value='commits';get('aiSource').dispatchEvent(new Event('change'));get('aiInput').value=info.commits.map(c=>c.message).join('\n').slice(0,15000);}
+      toast('Campos preenchidos. Confira o post e os links.');
+    } catch(e) {status.textContent=e.message || 'Não foi possível consultar o repositório.';toast(status.textContent,'error');}
+    finally {repoBusy=false;buttons.forEach(b=>b.disabled=false);}
+  }
+
   function bind() {
+    get('repoUrl').addEventListener('input', e => {state.repoUrl=e.target.value;update();});
+    get('repoBasic').addEventListener('click',()=>generateFromRepository('basic'));
+    get('repoFull').addEventListener('click',()=>generateFromRepository('full'));
+    get('aiSource').addEventListener('change', () => {
+      const old = get('aiSource').value === 'oldpost';
+      get('aiGenerate').textContent = old ? 'Importar post' : 'Gerar changelog';
+      get('aiOrganize').hidden = old;
+      get('aiTextLabel').textContent = old ? 'Cole o post antigo' : 'Cole os commits';
+      get('aiInput').placeholder = old ? 'Cole aqui o texto do Telegram...' : 'fix: camera crash\nupdate power HAL\nsepolicy: address denials';
+    });
+    get('aiGenerate').addEventListener('click',()=>processAIInput('changelog'));
+    get('aiOrganize').addEventListener('click',()=>processAIInput('organize'));
+    get('summarizeBtn').addEventListener('click',summarizeChangelog);
+    document.querySelectorAll('[data-translate]').forEach(button=>button.addEventListener('click',()=>translateField(button.dataset.translate)));
+    document.querySelectorAll('[data-undo]').forEach(button=>button.addEventListener('click',()=>{
+      const field=button.dataset.undo;
+      if (!Object.prototype.hasOwnProperty.call(undoValues,field)) return;
+      const previous=undoValues[field];
+      undoValues[field]=state[field];
+      state[field]=previous;
+      get(field).value=previous;
+      update();toast('Texto anterior restaurado.');
+    }));
+    get('creditRole').addEventListener('keydown', e=>{if(e.key==='Enter'){e.preventDefault();insertCredit();}});
+    get('creditUser').addEventListener('keydown', e=>{if(e.key==='Enter'){e.preventDefault();insertCredit();}});
+    get('addCredit').addEventListener('click',insertCredit);
+    get('romZipInput').addEventListener('change', e=>inspectRomZip(e.target.files?.[0]));
     for (const id of FIELDS) {
       const el = get(id);
       el.addEventListener(['SELECT'].includes(el.tagName) || el.type === 'date' ? 'change' : 'input', () => {

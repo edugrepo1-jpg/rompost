@@ -49,6 +49,21 @@
         <section class="editor panel" aria-label="Editor do post">
           <div class="panel-intro"><div><h2>Dados do post</h2><p>ROM, links e detalhes da publicação.</p></div><button id="exampleBtn" type="button" class="soft-button">Carregar exemplo <svg class="icon"><use href="#i-arrow"/></svg></button></div>
 
+          <details class="ai-panel" id="aiPanel">
+            <summary><span class="ai-dot">✦</span><strong>IA e importação</strong><small>Commits, post ou repositório</small><svg class="icon"><use href="#i-chevron"/></svg></summary>
+            <div class="ai-body">
+              <label class="field"><span>Conteúdo</span><select id="aiSource" aria-label="Tipo de conteúdo"><option value="commits">Commits</option><option value="oldpost">Post antigo</option></select></label>
+              <label class="field"><span id="aiTextLabel">Cole os commits</span><textarea id="aiInput" rows="4" maxlength="15000" placeholder="fix: camera crash&#10;update power HAL&#10;sepolicy: address denials"></textarea></label>
+              <div class="ai-actions"><button type="button" id="aiGenerate" class="ai-main-btn">Gerar changelog</button><button type="button" id="aiOrganize" class="mini-action">Organizar commits</button></div>
+              <div class="repo-generator">
+                <label class="field" for="repoUrl"><span>Repositório público do GitHub</span><input id="repoUrl" type="url" inputmode="url" maxlength="160" placeholder="https://github.com/owner/repo" autocomplete="url"></label>
+                <div class="ai-actions repo-actions"><button type="button" id="repoBasic" class="mini-action">Gerar do repositório</button><button type="button" id="repoFull" class="ai-main-btn">Gerar completo</button></div>
+                <p class="ai-note" id="repoResult" role="status">Dados editáveis. O download só será incluído se existir um ZIP na release mais recente.</p>
+              </div>
+              <p class="ai-note">Gemini gratuito: os textos enviados à IA podem ser usados pelo Google para melhorar o serviço. Não cole informações privadas.</p>
+            </div>
+          </details>
+
           <div class="form-section no-top">
             <div class="section-top"><span class="section-icon lavender"><svg class="icon"><use href="#i-image"/></svg></span><h3>Banner</h3><span class="field-optional">opcional</span></div>
             <div class="upload-row" id="uploadArea" role="button" tabindex="0" aria-label="Selecionar banner da ROM">
@@ -71,6 +86,7 @@
               <label class="field"><span>Data do lançamento</span><input type="date" id="releaseDate"></label>
               <div class="field span-two tag-field"><div class="field-head"><label for="hashtags">Hashtags</label><button id="autoTags" class="inline-link" type="button">Gerar tags</button></div><input id="hashtags" maxlength="600" placeholder="#PixelOS #ROM #Unofficial #A16 #alioth"></div>
             </div>
+            <div class="zip-tools"><label class="zip-button" for="romZipInput"><svg class="icon"><use href="#i-plus"/></svg> Ler ZIP da ROM</label><input id="romZipInput" type="file" accept=".zip,application/zip" hidden><span id="zipStatus" role="status">Leitura local, sem upload</span></div>
           </div>
 
           <div class="form-section">
@@ -82,11 +98,12 @@
           <div class="form-section">
             <div class="section-top"><span class="section-icon mint"><svg class="icon"><use href="#i-check"/></svg></span><h3>Changelog, Notes e Credits</h3></div>
             <div class="fields-stack">
-              <label class="field"><span>Changelog</span><textarea id="changelog" rows="3" placeholder="• Initial release&#10;• Fixed camera issues&#10;• Improved performance"></textarea></label>
-              <label class="field"><span>Notes</span><textarea id="notes" rows="3" placeholder="• GApps included&#10;• SELinux: Enforcing&#10;• Clean flash recommended"></textarea></label>
-              <label class="field"><span>Credits</span><textarea id="credits" rows="3" placeholder="• Thanks @developer for device tree&#10;• Thanks @tester for testing"></textarea></label>
+              <div class="field"><div class="field-actions"><label for="changelog">Changelog</label><span class="action-buttons"><button type="button" class="mini-action" data-translate="changelog" title="Traduz a seleção, ou o campo todo">Traduzir</button><button type="button" class="mini-action undo-action" data-undo="changelog" hidden>Desfazer</button><button type="button" class="mini-action" id="summarizeBtn">Resumir</button></span></div><textarea id="changelog" rows="3" placeholder="• Initial release&#10;• Fixed camera issues&#10;• Improved performance"></textarea></div>
+              <div class="field"><div class="field-actions"><label for="notes">Notes</label><button type="button" class="mini-action" data-translate="notes" title="Traduz a seleção, ou o campo todo">Traduzir</button><button type="button" class="mini-action undo-action" data-undo="notes" hidden>Desfazer</button></div><textarea id="notes" rows="3" placeholder="• GApps included&#10;• SELinux: Enforcing&#10;• Clean flash recommended"></textarea></div>
+              <div class="field"><div class="field-actions"><label for="credits">Credits</label><button type="button" class="mini-action" data-translate="credits" title="Traduz a seleção, ou o campo todo">Traduzir</button><button type="button" class="mini-action undo-action" data-undo="credits" hidden>Desfazer</button></div><textarea id="credits" rows="3" placeholder="• Thanks @developer for device tree&#10;• Thanks @tester for testing"></textarea></div>
+              <div class="credit-tools"><input id="creditUser" type="text" maxlength="33" autocomplete="off" placeholder="@developer" aria-label="Usuário do crédito"><input id="creditRole" type="text" maxlength="100" placeholder="kernel, device tree..." aria-label="Contribuição"><button id="addCredit" type="button" class="mini-action">+ Crédito</button></div>
             </div>
-            <p class="help-line">Links no texto: <code>[Changelog](https://link.com)</code> · Menções <code>@usuario</code> ficam clicáveis.</p>
+            <p class="help-line">Selecione um trecho antes de traduzir para alterar apenas ele. URLs, <code>**negrito**</code> e <code>@usuario</code> são preservados. Créditos com @ viram links.</p>
           </div>
 
           <div class="form-section last-section">
